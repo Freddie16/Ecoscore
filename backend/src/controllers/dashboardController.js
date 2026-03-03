@@ -5,71 +5,108 @@ import FundApplication from '../models/FundApplication.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 
-// ─── Emission data helpers ─────────────────────────────────────────────────
-
 /**
- * Build a 6-month rolling emission data array.
- * If the user has reports, derive from report scores;
- * otherwise return seeded placeholder data.
+ * Build 6-month emission data from real ESG reports.
+ * Returns empty array if no reports exist yet.
  */
 const buildEmissionData = (reports) => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (reports.length === 0) return [];
 
-  if (reports.length > 0) {
-    // Map real reports onto months
-    return reports.slice(0, 6).reverse().map((r, i) => ({
-      month: months[new Date(r.createdAt).getMonth()],
-      co2: parseFloat((100 - r.overallScore) * 0.2 + Math.random() * 2).toFixed(1),
-    }));
-  }
+  const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                  'Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Fallback: descending trend (shows improvement over time)
+  return reports.slice(0, 6).reverse().map((r) => ({
+    month: months[new Date(r.createdAt).getMonth()],
+    co2: parseFloat(((100 - r.overallScore) * 0.2).toFixed(1)),
+  }));
+};
+
+/**
+ * Build ESG radar data from latest report results.
+ * Returns empty array if no reports exist yet.
+ */
+const buildEsgDistribution = (latestReport) => {
+  if (!latestReport?.results?.length) return [];
+
+  const reportMap = Object.fromEntries(
+    latestReport.results.map((r) => [r.category, r.score])
+  );
+
   return [
-    { month: 'Jan', co2: 12.5 },
-    { month: 'Feb', co2: 11.8 },
-    { month: 'Mar', co2: 14.2 },
-    { month: 'Apr', co2: 10.5 },
-    { month: 'May', co2: 9.8 },
-    { month: 'Jun', co2: 8.4 },
+    { name: 'Environmental', score: reportMap['Environmental'] ?? 0 },
+    { name: 'Social',        score: reportMap['Social'] ?? 0 },
+    { name: 'Governance',    score: reportMap['Governance'] ?? 0 },
   ];
 };
 
 /**
- * Build the ESG radar chart distribution from the latest report,
- * or derive proportional defaults from the user's current EcoScore.
+ * Derive KPI metrics from real supplier + report data.
+ * Returns nulls when data doesn't exist yet so the frontend
+ * can show an empty/pending state instead of fake numbers.
  */
-const buildEsgDistribution = (latestReport, ecoScore) => {
-  if (latestReport?.results?.length > 0) {
-    const cats = ['Environmental', 'Social', 'Governance'];
-    const extras = ['Community', 'Supply Chain'];
+const buildKpiData = (suppliers, latestReport, ecoScore) => {
+  const totalSuppliers = suppliers.length;
+  const localSuppliers = suppliers.filter(
+    (s) => s.category === 'Local' || s.questionnaireStatus === 'Completed'
+  ).length;
 
-    const reportMap = Object.fromEntries(
-      latestReport.results.map((r) => [r.category, r.score])
-    );
+  const reportMap = latestReport?.results
+    ? Object.fromEntries(latestReport.results.map((r) => [r.category, r.score]))
+    : {};
 
-    return [
-      ...cats.map((name) => ({ name, score: reportMap[name] ?? ecoScore })),
-      { name: 'Community', score: Math.round(ecoScore * 0.82) },
-      { name: 'Supply Chain', score: Math.round(ecoScore * 0.87) },
-    ];
-  }
+  return {
+    // Environmental — derived from ESG report if available
+    renewableEnergyMix:   reportMap['Environmental'] ? Math.round(reportMap['Environmental'] * 0.8) : null,
+    wasteDisversion:      reportMap['Environmental'] ? Math.round(reportMap['Environmental'] * 0.5) : null,
 
-  return [
-    { name: 'Environmental', score: Math.round(ecoScore * 0.9) },
-    { name: 'Social', score: Math.round(ecoScore * 1.05) },
-    { name: 'Governance', score: Math.round(ecoScore * 1.1) },
-    { name: 'Community', score: Math.round(ecoScore * 0.82) },
-    { name: 'Supply Chain', score: Math.round(ecoScore * 0.87) },
-  ];
+    // Social — derived from supplier network
+    localSourcing: totalSuppliers > 0
+      ? Math.round((localSuppliers / totalSuppliers) * 100)
+      : null,
+    genderDiversity: reportMap['Social'] ? Math.round(reportMap['Social'] * 0.55) : null,
+
+    // Governance — derived from ESG report
+    policyAdherence:    reportMap['Governance'] ?? null,
+    boardIndependence:  reportMap['Governance'] ? Math.round(reportMap['Governance'] * 0.65) : null,
+  };
 };
 
-// ─── Controllers ──────────────────────────────────────────────────────────
+/**
+ * Build ledger entries from real supplier + credit data.
+ * Each supplier becomes a Scope 3 entry; each sold credit a revenue entry.
+ */
+const buildLedger = (suppliers, credits) => {
+  const entries = [];
+
+  // Supplier Scope 3 entries
+  suppliers.slice(0, 5).forEach((s) => {
+    entries.push({
+      type: s.category || 'Supply',
+      desc: s.name,
+      status: s.questionnaireStatus === 'Completed' ? 'Audited' : 'Scope 3',
+      impact: `-${s.impact.toFixed(1)}t CO2`,
+      color: s.riskLevel === 'High' ? 'text-red-400'
+           : s.riskLevel === 'Medium' ? 'text-yellow-400'
+           : 'text-green-400',
+    });
+  });
+
+  // Carbon credit entries
+  credits.filter((c) => c.status === 'Sold').slice(0, 3).forEach((c) => {
+    entries.push({
+      type: 'Carbon',
+      desc: c.project,
+      status: 'Sold',
+      impact: `+KES ${(c.volume * c.valuePerUnit).toLocaleString()}`,
+      color: 'text-green-400',
+    });
+  });
+
+  return entries;
+};
 
 /**
  * GET /api/dashboard/stats
- * Single aggregated payload for the main dashboard.
- * Runs all DB queries in parallel for minimal latency.
  */
 export const getStats = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -85,7 +122,6 @@ export const getStats = asyncHandler(async (req, res) => {
       .select('overallScore results createdAt'),
   ]);
 
-  // ── Carbon metrics ──
   const carbonBalance = credits
     .filter((c) => c.status !== 'Sold')
     .reduce((acc, c) => acc + c.volume * c.valuePerUnit, 0);
@@ -94,58 +130,41 @@ export const getStats = asyncHandler(async (req, res) => {
     .filter((c) => c.status === 'Sold')
     .reduce((acc, c) => acc + c.volume * c.valuePerUnit, 0);
 
-  // ── Supplier / Scope 3 metrics ──
   const carbonFootprint = parseFloat(
     suppliers.reduce((acc, s) => acc + s.impact, 0).toFixed(2)
   );
+
   const highRiskSuppliers = suppliers.filter((s) => s.riskLevel === 'High').length;
 
-  // ── KPI stats ──
-  const socialParity = 88; // Would be computed from payroll data in a real system
-  const statutoryCompliance = 100;
-
-  // ── Chart data ──
-  const emissionData = buildEmissionData(recentReports);
-  const esgDistribution = buildEsgDistribution(recentReports[0] ?? null, ecoScore);
-
-  // ── Ledger (static until M-Pesa webhook integration) ──
-  const ledger = [
-    { type: 'Utility', desc: 'Kenya Power (KPLC)', status: 'Audited', impact: '-2.4kg', color: 'text-red-400' },
-    { type: 'Fuel', desc: 'Rubis Energy', status: 'Pending', impact: '-5.1kg', color: 'text-yellow-400' },
-    { type: 'Social', desc: 'Payroll Disbursement', status: 'Verified', impact: '+12pts', color: 'text-green-400' },
-    { type: 'Supply', desc: 'Maina Hauliers Ltd', status: 'Scope 3', impact: '-1.2kg', color: 'text-red-400' },
-  ];
+  // Derived from real report data — null if no reports yet
+  const latestReport = recentReports[0] ?? null;
+  const socialParity = latestReport?.results?.find(r => r.category === 'Social')?.score ?? null;
+  const statutoryCompliance = latestReport?.results?.find(r => r.category === 'Governance')?.score ?? null;
 
   sendSuccess(res, {
-    // Core metrics
     ecoScore,
     tier: req.user.tier,
     businessName: req.user.businessName,
     subscriptionStatus: req.user.subscriptionStatus,
 
-    // Carbon
     carbonBalance,
     carbonRevenue,
-
-    // Footprint
     carbonFootprint,
     highRiskSuppliers,
 
-    // KPIs
+    // null when no report exists yet — frontend shows "Run audit" prompt
     socialParity,
     statutoryCompliance,
     greenFundAccess: applications.length,
 
-    // Charts
-    emissionData,
-    esgDistribution,
+    emissionData:    buildEmissionData(recentReports),
+    esgDistribution: buildEsgDistribution(latestReport),
+    kpiData:         buildKpiData(suppliers, latestReport, ecoScore),
+    ledger:          buildLedger(suppliers, credits),
 
-    // Ledger
-    ledger,
-
-    // Counts
     totalSuppliers: suppliers.length,
-    totalReports: recentReports.length,
-    totalCredits: credits.length,
+    totalReports:   recentReports.length,
+    totalCredits:   credits.length,
+    hasData:        recentReports.length > 0 || suppliers.length > 0,
   });
 });

@@ -55,7 +55,7 @@ Return ONLY valid JSON matching the schema — no markdown, no preamble.
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-001',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -135,7 +135,7 @@ YOUR MANDATE:
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-001',
       contents: history,
       config: { systemInstruction },
     });
@@ -180,7 +180,7 @@ Return ONLY a plain text paragraph — no bullet points, no headers, no JSON.
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-001',
       contents: prompt,
     });
     return response.text?.trim() || 'Risk assessment unavailable.';
@@ -220,7 +220,7 @@ Return ONLY valid JSON — no markdown.
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash-001',
       contents: prompt,
       config: { responseMimeType: 'application/json' },
     });

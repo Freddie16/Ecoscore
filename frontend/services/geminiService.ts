@@ -24,7 +24,7 @@ export const analyzeESGData = async (transactions: string): Promise<AnalysisResu
 
   // Upgrading to gemini-3-pro-preview for complex reasoning tasks like ESG auditing.
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-1.5-flash',
     contents: prompt,
     config: {
       responseMimeType: "application/json",
