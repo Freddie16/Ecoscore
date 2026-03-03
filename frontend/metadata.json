@@ -1,0 +1,7 @@
+{
+  "name": "EcoScore.AI",
+  "description": "An AI-powered ESG compliance SaaS for Kenyan SMEs, helping them calculate carbon footprints, verify social metrics, and unlock green capital through automated reporting.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
