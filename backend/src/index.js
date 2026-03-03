@@ -30,15 +30,33 @@ app.use(helmet());
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
+  process.env.CLIENT_URL,
+  'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:4173',
-];
+].filter(Boolean);
+
+// Handle preflight for all routes first
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
+});
 
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      // Allow requests with no origin (mobile apps, curl, Render health checks)
+      if (!origin) return cb(null, true);
+      // Allow any vercel.app subdomain automatically
+      if (origin.endsWith('.vercel.app')) return cb(null, true);
+      // Allow any onrender.com subdomain
+      if (origin.endsWith('.onrender.com')) return cb(null, true);
+      // Allow localhost
+      if (origin.startsWith('http://localhost')) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS: Origin "${origin}" is not allowed`));
     },
     credentials: true,
