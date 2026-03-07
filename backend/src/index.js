@@ -45,18 +45,25 @@ app.options('*', (req, res) => {
   res.sendStatus(204);
 });
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (origin.endsWith('.vercel.app')) return cb(null, true);
-    if (origin.endsWith('.onrender.com')) return cb(null, true);
-    if (origin.startsWith('http://localhost')) return cb(null, true);
-    cb(null, true); // allow all during development
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Allow requests with no origin (mobile apps, curl, Render health checks)
+      if (!origin) return cb(null, true);
+      // Allow any vercel.app subdomain automatically
+      if (origin.endsWith('.vercel.app')) return cb(null, true);
+      // Allow any onrender.com subdomain
+      if (origin.endsWith('.onrender.com')) return cb(null, true);
+      // Allow localhost
+      if (origin.startsWith('http://localhost')) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: Origin "${origin}" is not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 const globalLimiter = rateLimit({
