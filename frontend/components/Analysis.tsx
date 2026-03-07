@@ -318,7 +318,7 @@ const Analysis: React.FC<Props> = ({ user }) => {
               <select
                 value={newSupplier.category}
                 onChange={e => setNewSupplier({ ...newSupplier, category: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white"
+                className="w-full bg-black border border-white/10 rounded-2xl px-5 py-4 text-white"
                 required
               >
                 <option value="" disabled>Select Category</option>
