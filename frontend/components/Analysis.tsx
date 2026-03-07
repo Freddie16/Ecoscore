@@ -160,7 +160,7 @@ const Analysis: React.FC<Props> = ({ user }) => {
               <div className="h-full glass-card p-12 rounded-2xl border border-white/10 border-dashed flex flex-col items-center justify-center text-center">
                 <FileText className="w-12 h-12 text-gray-700 mb-4" />
                 <h3 className="text-lg font-bold">Waiting for Data</h3>
-                <p className="text-gray-500 text-sm">Our Gemini model will categorize your spend into ESG buckets.</p>
+                <p className="text-gray-500 text-sm">Our model will categorize your spend into ESG buckets.</p>
               </div>
             ) : (
               results.map((res, i) => (
