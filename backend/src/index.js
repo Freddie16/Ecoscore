@@ -25,32 +25,38 @@ const PORT = process.env.PORT || 5000;
 // ── Database ──────────────────────────────────────────────────────────────────
 connectDB();
 
-// ── CORS — must be first, before helmet ───────────────────────────────────────
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(204);
-});
-
-app.use(cors({
+// ── CORS — must be FIRST, before everything else ──────────────────────────────
+const corsOptions = {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
     if (origin.endsWith('.vercel.app')) return cb(null, true);
     if (origin.endsWith('.onrender.com')) return cb(null, true);
     if (origin.startsWith('http://localhost')) return cb(null, true);
-    cb(null, true);
+    cb(null, true); // allow all for now
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+};
 
-// ── Security headers (after CORS) ─────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // handle preflight
 
-// ── Rate limiting ─────────────────────────────────────────────────────────────
+// ── Security headers ──────────────────────────────────────────────────────────
+app.use(helmet({ crossOriginResourcePolicy: false, crossOriginOpenerPolicy: false }));
+
+// ── Body parsing ──────────────────────────────────────────────────────────────
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ── HTTP logging ──────────────────────────────────────────────────────────────
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+
+// ── Rate limiting (after CORS so preflight is never rate-limited) ─────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -68,23 +74,13 @@ const aiLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  skip: (req) => req.method === 'OPTIONS', // never rate-limit preflight
   message: { success: false, message: 'Too many auth attempts. Please try again later.' },
 });
 
 app.use('/api',          globalLimiter);
 app.use('/api/auth',     authLimiter);
 app.use('/api/analysis', aiLimiter);
-
-// ── Body parsing ──────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// ── HTTP logging ──────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
