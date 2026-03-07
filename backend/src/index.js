@@ -117,3 +117,29 @@ app.listen(PORT, () => {
 });
 
 export default app;
+
+// ── One-time seed endpoint (adds green funds to DB) ───────────────────────────
+app.post('/api/seed-funds', async (req, res) => {
+  // Simple secret check so random people can't call it
+  if (req.headers['x-seed-secret'] !== (process.env.SEED_SECRET || 'ecoscore-seed-2026')) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  }
+  try {
+    const { default: GreenFund } = await import('./models/GreenFund.js');
+    const existing = await GreenFund.countDocuments();
+    if (existing > 0) {
+      return res.json({ success: true, message: `Already seeded (${existing} funds exist)` });
+    }
+    await GreenFund.insertMany([
+      { name: 'Green SME Loan', provider: 'Equity Bank Kenya', maxFunding: 'KES 25,000,000', maxFundingValue: 25000000, interestRate: '8.5% p.a.', minEcoScore: 45, description: 'Preferred lending rates for SMEs with verified low carbon footprints and active waste management systems.', category: 'Loan', tags: ['environmental', 'carbon', 'sme'] },
+      { name: 'Gender Parity Grant', provider: 'Mastercard Foundation', maxFunding: 'KES 5,000,000', maxFundingValue: 5000000, interestRate: '0% (Grant)', minEcoScore: 50, description: 'Targeting businesses with equitable pay structures and female workforce representation.', category: 'Grant', tags: ['social', 'gender', 'diversity'] },
+      { name: 'Climate Resilience Fund', provider: 'Kenya Climate Ventures', maxFunding: 'KES 100,000,000', maxFundingValue: 100000000, interestRate: '12% p.a.', minEcoScore: 40, description: 'Growth capital for SMEs adapting supply chains to climate-related disruptions.', category: 'Loan', tags: ['climate', 'supply-chain', 'resilience'] },
+      { name: 'Sustainable Agriculture Loan', provider: 'KCB Bank Kenya', maxFunding: 'KES 10,000,000', maxFundingValue: 10000000, interestRate: '10% p.a.', minEcoScore: 35, description: 'Financing for agri-SMEs adopting sustainable farming practices and organic certification.', category: 'Loan', tags: ['agriculture', 'sustainability'] },
+      { name: 'AfDB Green Growth Grant', provider: 'African Development Bank', maxFunding: 'KES 50,000,000', maxFundingValue: 50000000, interestRate: '0% (Grant)', minEcoScore: 60, description: 'Pan-African grant for businesses demonstrating measurable environmental and social impact.', category: 'Grant', tags: ['pan-african', 'impact', 'scale'] },
+      { name: 'IFC SME Ventures', provider: 'International Finance Corporation', maxFunding: 'KES 75,000,000', maxFundingValue: 75000000, interestRate: '9% p.a.', minEcoScore: 30, description: 'IFC-backed financing for East African SMEs with documented ESG improvement plans.', category: 'Blended', tags: ['ifc', 'east-africa', 'growth'] },
+    ]);
+    return res.json({ success: true, message: '✅ 6 green funds seeded successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});

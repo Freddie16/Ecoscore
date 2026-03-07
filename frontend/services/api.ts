@@ -120,8 +120,17 @@ export const carbonApi = {
   create: (data: any) =>
     api.post<{ success: boolean; data: any }>('/carbon', data),
 
+  verify: (id: string) =>
+    api.patch<{ success: boolean; data: any }>(`/carbon/${id}/verify`),
+
   listOnMarket: (id: string) =>
     api.patch<{ success: boolean; data: any }>(`/carbon/${id}/list`),
+
+  sell: (id: string) =>
+    api.patch<{ success: boolean; data: any }>(`/carbon/${id}/sell`),
+
+  valuate: (id: string) =>
+    api.post<{ success: boolean; data: any }>(`/carbon/${id}/valuate`),
 };
 
 // ─── Marketplace ─────────────────────────────────────────────────────────────
