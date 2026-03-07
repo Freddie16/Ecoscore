@@ -4,5 +4,10 @@
       "source": "/api/:path*",
       "destination": "https://ecoscore-backend.onrender.com/api/:path*"
     }
-  ]
+  ],
+  "functions": {
+    "api/**": {
+      "maxDuration": 30
+    }
+  }
 }
